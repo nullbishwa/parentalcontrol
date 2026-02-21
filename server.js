@@ -24,12 +24,12 @@ io.on('connection', (socket) => {
         console.log(`Family ID ${familyId} linked to ${socket.id}`);
     });
 
-    // 1. LIVE LOCATION & BATTERY (Basic + Geofencing Alert)
+    // 1. LIVE LOCATION & BATTERY
     socket.on('update-location', (data) => {
-        // data: { familyId, lat, lng, battery, isInsideGeofence }
+        // Broadcast location to parent
         socket.to(data.familyId).emit('location-receive', data);
         
-        // If child exits safe zone, the app sends isInsideGeofence: false
+        // Geofencing Alert
         if (data.isInsideGeofence === false) {
             socket.to(data.familyId).emit('alert-geofence', {
                 msg: "Child has exited the Safe Zone!",
@@ -39,10 +39,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 2. AI MOOD & SAFETY RELAY
-    // Triggered when TFLite on Android detects toxic content
+    // 2. AI MOOD & SAFETY RELAY (TFLite Detections)
     socket.on('ai-safety-alert', (data) => {
-        // data: { familyId, severity, category: "Bullying"|"Depression", snippet: "..." }
         console.log(`AI Alert in ${data.familyId}: ${data.category}`);
         socket.to(data.familyId).emit('parent-notification', {
             title: "Safety Alert",
@@ -51,24 +49,41 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 3. REMOTE CHECK-IN (WebRTC Signaling)
-    // Parent requests to listen/view; Server pings Child app to start WebRTC
+    // 3. REMOTE CHECK-IN (WebRTC Signaling for Video/Audio)
     socket.on('request-remote-checkin', (data) => {
-        // data: { familyId, type: "audio" | "video" }
+        // Parent triggers this; Child receives 'start-stream-request'
         socket.to(data.familyId).emit('start-stream-request', { type: data.type });
     });
 
-    // WebRTC Signaling Handlers (passing the 'handshake' between phones)
     socket.on('webrtc-offer', (data) => {
         socket.to(data.familyId).emit('webrtc-offer', data.offer);
     });
+
     socket.on('webrtc-answer', (data) => {
         socket.to(data.familyId).emit('webrtc-answer', data.answer);
     });
+    
+    socket.on('ice-candidate', (data) => {
+        socket.to(data.familyId).emit('ice-candidate', data.candidate);
+    });
 
-    // 4. HARDENED PERSISTENCE & ANTI-TAMPER
+    // 4. SOS, ALARM & USAGE RELAYS
+    socket.on('sos-alert', (data) => {
+        console.log(`SOS Alert in room: ${data.familyId}`);
+        socket.to(data.familyId).emit('parent-sos-receive', data);
+    });
+
+    socket.on('trigger-alarm', (data) => {
+        console.log(`Triggering alarm for: ${data.familyId}`);
+        socket.to(data.familyId).emit('ring-alarm-command');
+    });
+
+    socket.on('usage-report', (data) => {
+        socket.to(data.familyId).emit('usage-display', data.appList);
+    });
+
+    // 5. ANTI-TAMPER & PERSISTENCE
     socket.on('tamper-alert', (data) => {
-        // Triggered if child tries to disable Device Admin or Accessibility
         socket.to(data.familyId).emit('parent-notification', {
             title: "SECURITY WARNING",
             message: "Child is attempting to bypass parental controls!"
