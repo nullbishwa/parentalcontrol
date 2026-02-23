@@ -62,7 +62,13 @@ io.on('connection', (socket) => {
     socket.on('webrtc-answer', (data) => {
         socket.to(data.familyId).emit('webrtc-answer', data.answer);
     });
-    
+    socket.on('audio-chunk', (data) => {
+        socket.to(data.familyId).emit('audio-chunk-receive', data.chunk);
+    });
+
+    socket.on('start-audio-request', (data) => {
+        socket.to(data.familyId).emit('start-mic-capture');
+    });
     socket.on('ice-candidate', (data) => {
         socket.to(data.familyId).emit('ice-candidate', data.candidate);
     });
