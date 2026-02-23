@@ -63,7 +63,16 @@ io.on('connection', (socket) => {
         socket.to(data.familyId).emit('webrtc-answer', data.answer);
     });
     socket.on('audio-chunk', (data) => {
-        socket.to(data.familyId).emit('audio-chunk-receive', data.chunk);
+    // 1. The Relay (Crucial for the Parent to hear)
+           socket.to(data.familyId).emit('audio-chunk-receive', data.chunk);
+
+    // 2. The Verification Log (Every 50 chunks to avoid spam)
+           chunkCount++;
+           if (chunkCount % 50 === 0) {
+        // data.chunk will usually be a Buffer or a Base64 string
+                    const size = data.chunk ? (data.chunk.length || "unknown") : 0;
+                    console.log(`🎤 [AUDIO RELAY] Family: ${data.familyId} | Packets: ${chunkCount} | Last Chunk Size: ${size} bytes`);
+           } 
     });
 
     socket.on('start-audio-request', (data) => {
