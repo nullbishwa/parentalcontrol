@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
-
+let chunkCount = 0; // Global tracker to prevent ReferenceErrors
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -63,23 +63,26 @@ io.on('connection', (socket) => {
         socket.to(data.familyId).emit('webrtc-answer', data.answer);
     });
     socket.on('audio-chunk', (data) => {
-    // 1. The Relay (Crucial for the Parent to hear)
-           socket.to(data.familyId).emit('audio-chunk-receive', data.chunk);
+        if (!data.chunk || !data.familyId) return;
 
-    // 2. The Verification Log (Every 50 chunks to avoid spam)
-           chunkCount++;
-           if (chunkCount % 50 === 0) {
-        // data.chunk will usually be a Buffer or a Base64 string
-                    const size = data.chunk ? (data.chunk.length || "unknown") : 0;
-                    console.log(`🎤 [AUDIO RELAY] Family: ${data.familyId} | Packets: ${chunkCount} | Last Chunk Size: ${size} bytes`);
-           } 
+        // 1. Relay the raw bytes to the parent
+        socket.to(data.familyId).emit('audio-chunk-receive', data.chunk);
+
+        // 2. Verification Log for Render Terminal
+        chunkCount++;
+        if (chunkCount % 100 === 0) {
+            const size = data.chunk.length || 0;
+            console.log(`🎤 [AUDIO] Family: ${data.familyId} | Packets: ${chunkCount} | Size: ${size} bytes`);
+        }
     });
 
     socket.on('start-audio-request', (data) => {
+        // Parent sends this; Server tells Child to turn on Mic
         socket.to(data.familyId).emit('start-mic-capture');
     });
-    socket.on('ice-candidate', (data) => {
-        socket.to(data.familyId).emit('ice-candidate', data.candidate);
+
+    socket.on('stop-audio-request', (data) => {
+        socket.to(data.familyId).emit('stop-mic-capture');
     });
 
     // 4. SOS, ALARM & USAGE RELAYS
